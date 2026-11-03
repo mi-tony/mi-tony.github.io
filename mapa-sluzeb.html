@@ -7,6 +7,9 @@
 <style>
   html,body{margin:0;height:100%;background:#0a0e1a;overflow:hidden;font-family:Inter,"Segoe UI",-apple-system,Roboto,sans-serif;color:#e6e9f2}
   canvas{display:block;touch-action:none;outline:none}
+  canvas:focus-visible{box-shadow:inset 0 0 0 2px #7c5cdb}
+  button:focus-visible{outline:2px solid #7c5cdb;outline-offset:2px;border-radius:6px}
+  .lnk{background:none;border:0;padding:0;color:#9aa3c2;font:inherit;cursor:pointer}
   #panel{position:absolute;top:14px;left:14px;width:236px;background:rgba(14,21,40,.92);border:1px solid rgba(255,255,255,.07);
     border-radius:18px;padding:14px 16px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);font-size:14px;user-select:none;max-height:calc(100% - 60px);overflow:auto}
   #panel h1{font-size:15px;margin:0 0 10px;font-weight:600;letter-spacing:.2px}
@@ -37,13 +40,13 @@
 <div id="panel">
   <h1>AI asistent · mapa služeb</h1>
   <div id="legend"></div>
-  <div id="legendCtl" class="muted"><a id="all" href="#" role="button">vše</a> · <a id="none" href="#" role="button">nic</a></div>
+  <div id="legendCtl" class="muted"><button class="lnk" id="all">vše</button> · <button class="lnk" id="none">nic</button></div>
   <button class="btn" id="reheat">⟳ Zatřást grafem</button>
   <button class="row" id="lblToggle" aria-pressed="true"><span class="cb blue"><svg viewBox="0 0 12 12"><path d="M2 6.5l2.5 2.5L10 3" stroke="#fff" stroke-width="2" fill="none"/></svg></span>Popisky hlavních uzlů</button>
   <button class="row" id="allLblToggle" aria-pressed="false"><span class="cb blue off"><svg viewBox="0 0 12 12"><path d="M2 6.5l2.5 2.5L10 3" stroke="#fff" stroke-width="2" fill="none"/></svg></span>Všechny popisky</button>
-  <div class="muted key"><svg width="26" height="8"><line x1="0" y1="4" x2="26" y2="4" stroke="#9aa3c2" stroke-dasharray="4 4"/></svg>plánované</div>
-  <div class="muted key"><svg width="26" height="8"><line x1="0" y1="4" x2="26" y2="4" stroke="#9aa3c2" stroke-dasharray="1 3"/></svg>nepřímé / záložní</div>
-  <div id="stats" class="muted" aria-live="polite"></div>
+  <div class="muted key"><svg width="26" height="10" aria-hidden="true"><line x1="0" y1="5" x2="16" y2="5" stroke="#9aa3c2" stroke-dasharray="4 4"/><circle cx="21" cy="5" r="4" fill="#9aa3c2"/><circle cx="21" cy="5" r="1.8" fill="none" stroke="#0e1528" stroke-width="1.2"/></svg>plánované (kroužek)</div>
+  <div class="muted key"><svg width="26" height="10" aria-hidden="true"><line x1="0" y1="5" x2="16" y2="5" stroke="#9aa3c2" stroke-dasharray="1 3"/><circle cx="21" cy="5" r="4" fill="none" stroke="#9aa3c2" stroke-width="1.5"/></svg>nepřímé / záložní (obrys)</div>
+  <div class="muted" style="margin-top:10px"><span id="stats" aria-live="polite"></span> · <span id="fps" aria-hidden="true"></span></div>
 </div>
 <button id="collapse" aria-label="Skrýt nebo zobrazit panel">☰</button>
 <div id="tip" role="tooltip"></div>
@@ -137,13 +140,13 @@ N.push(
  ["cms","Web (CMS)","web","Správa obsahu přes API – jen koncepty.",0,"p"],
 );
 const X = [
- ["llm1","core"],["llm4","core"],["stt","voice"],["voice","chat"],["img","llm4"],["llm5","vpn"],["appr","chat"],["skills","mem"],
+ ["llm1","core"],["llm4","core"],["stt","voice"],["voice","chat"],["img","llm4","s"],["llm5","vpn"],["appr","chat"],["skills","mem"],
  ["c1","chat"],["c2","chat"],["c3","chat"],["c4","chat"],["c5","chat"],["c6","chat"],["c7","chat"],["c8","chat"],
  ["c1","cal"],["c1","tasks"],["c2","tasks"],["c3","tasks"],["c4","tasks"],["c5","ideas"],
  ["c6","st1"],["c6","sync"],["c7","task"],["c7","st1"],["c8","st1"],
  ["sync","st1"],["sync","st2"],["oauth2","sync"],["st2","fin"],["st2","fout"],["st2","farch"],
  ["oauth1","email"],["email","copil"],["ssh","fw"],["ssh","vpn"],["mon","vpn"],["vpn","fw"],["router","os"],["svc","chat"],["cli","ssh"],["api","cli"],["files","chat"],["ssh2","ssh"],
- ["pwd","st1"],["pwd","oauth1"],["pwd","oauth2"],["pwd","cms"],["dns","cms"],
+ ["pwd","st1"],["pwd","oauth2"],["pwd","cms"],["dns","cms"],
  ["p1","fin"],["p4","p5"],["p7","cms"],["p6","p7"],["p8","fin"],["proj","tasks"],
  ["p1","tproj"],["p2","tproj"],["p3","tproj"],["p4","tproj"],["p5","tproj"],["p6","tproj"],["p7","tproj"],
  ["brow","search"],["read","search"],
@@ -156,7 +159,8 @@ const byId={};nodes.forEach(n=>byId[n.id]=n);
 const L=[];
 nodes.forEach(n=>{ if(n.id==="core")return; if(n.hub||n.g==="core") L.push(["core",n.id]); else L.push([n.g,n.id]); });
 X.forEach(x=>{ if(!byId[x[0]]||!byId[x[1]]) console.warn("chybí uzel",x); else L.push(x); });
-const links=L.map(([a,b])=>{const s=byId[a],t=byId[b];return {s,t,st:s.st==="p"||t.st==="p"?"p":(s.st==="i"||t.st==="i"?"i":"")};});
+// 3. prvek vazby: "s" = vynutit plnou čáru (skutečně používaná vazba)
+const links=L.map(([a,b,o])=>{const s=byId[a],t=byId[b];return {s,t,st:o==="s"?"":(s.st==="p"||t.st==="p"?"p":(s.st==="i"||t.st==="i"?"i":""))};});
 
 // ---------- seeded random (stabilní rozložení) ----------
 let seed=20261103;
@@ -233,8 +237,9 @@ function draw(){
     ctx.globalCompositeOperation="source-over";
     if(n.hub){const g=ctx.createRadialGradient(n.x-n.r*.35,n.y-n.r*.35,n.r*.1,n.x,n.y,n.r);g.addColorStop(0,"#ffffff");g.addColorStop(.35,c);g.addColorStop(1,shade(c));ctx.fillStyle=g;}
     else ctx.fillStyle=c;
-    ctx.beginPath();ctx.arc(n.x,n.y,n.r,0,7);ctx.fill();
-    if(n.st){ctx.strokeStyle="#0a0e1a";ctx.lineWidth=1.2;ctx.beginPath();ctx.arc(n.x,n.y,n.r*0.45,0,7);ctx.stroke();}
+    if(n.st==="i"){ctx.strokeStyle=c;ctx.lineWidth=1.6;ctx.fillStyle="#0a0e1a";ctx.beginPath();ctx.arc(n.x,n.y,n.r,0,7);ctx.fill();ctx.stroke();}
+    else{ctx.beginPath();ctx.arc(n.x,n.y,n.r,0,7);ctx.fill();}
+    if(n.st==="p"){ctx.strokeStyle="#0a0e1a";ctx.lineWidth=1.2;ctx.beginPath();ctx.arc(n.x,n.y,n.r*0.45,0,7);ctx.stroke();}
     ctx.globalCompositeOperation="lighter";});
   ctx.globalAlpha=1;ctx.globalCompositeOperation="source-over";ctx.restore();
   // labels – vyhýbají se popiskům i uzlům
@@ -264,8 +269,10 @@ function loop(t){
   if(t-last>1000){fps=frames;frames=0;last=t;updStats();}
   requestAnimationFrame(loop);
 }
+let lastStats="";
 function updStats(){const vn=nodes.filter(visible).length;const vl=links.filter(l=>visible(l.s)&&visible(l.t)).length;
-  document.getElementById("stats").innerHTML=`${vn} uzlů · ${vl} vazeb · <span style="opacity:.7">${fps?fps+" fps":"v klidu"}</span>`;}
+  const t=`${vn} uzlů · ${vl} vazeb`; if(t!==lastStats){document.getElementById("stats").textContent=t;lastStats=t;}
+  document.getElementById("fps").textContent=fps?fps+" fps":"v klidu";}
 fit();updStats();requestAnimationFrame(loop);
 addEventListener("resize",()=>{resize();fit();});
 
@@ -285,8 +292,8 @@ Object.entries(GROUPS).forEach(([k,g])=>{ if(k==="core")return;
   const r=document.createElement("button");r.className="row";r.dataset.k=k;r.setAttribute("aria-pressed","true");
   r.innerHTML=`<span class="cb">${check}</span><span class="dot" style="background:${g.color}"></span>${g.name}`;
   r.onclick=()=>{setHidden(k,!hidden.has(k));changed();};lg.appendChild(r);});
-document.getElementById("all").onclick=e=>{e.preventDefault();Object.keys(GROUPS).forEach(k=>k!=="core"&&setHidden(k,false));changed();};
-document.getElementById("none").onclick=e=>{e.preventDefault();Object.keys(GROUPS).forEach(k=>k!=="core"&&setHidden(k,true));changed();};
+document.getElementById("all").onclick=()=>{Object.keys(GROUPS).forEach(k=>k!=="core"&&setHidden(k,false));changed();};
+document.getElementById("none").onclick=()=>{Object.keys(GROUPS).forEach(k=>k!=="core"&&setHidden(k,true));changed();};
 document.getElementById("lblToggle").onclick=e=>{showMain=!showMain;e.currentTarget.firstChild.classList.toggle("off",!showMain);e.currentTarget.setAttribute("aria-pressed",showMain);dirty=true;};
 document.getElementById("allLblToggle").onclick=e=>{showAll=!showAll;e.currentTarget.firstChild.classList.toggle("off",!showAll);e.currentTarget.setAttribute("aria-pressed",showAll);dirty=true;};
 document.getElementById("reheat").onclick=()=>{nodes.forEach(n=>{n.vx+=(rnd()-.5)*30;n.vy+=(rnd()-.5)*30;});alpha=0.6;};
